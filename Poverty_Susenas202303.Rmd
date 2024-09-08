@@ -1,0 +1,564 @@
+---
+title: "Poverty"
+author: "Febriany Lete"
+date: "2024-09-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(haven)
+library(foreign)
+library(dplyr)
+library(tidyr)
+library(labelled)
+library(ggplot2)
+library(ggrepel)
+```
+
+#Load datasets
+
+```{r}
+kp3_202303 <- read_sav("kp43.sav")
+kor1_202303 <- read_sav("kor_ind1.sav")
+kor2_202303 <- read.dbf("53_ssn_202303_kor_ind2.dbf")
+korrt_202303 <- read.dbf("53_ssn_202303_kor_rt_rev.dbf")
+```
+
+## Karakteristik Sosial Demografi Rumah Tangga Miskin dan Tidak Miskin Menurut Wilayah
+
+**Poverty line and population living in poverty**
+
+Garis kemiskinan di NTT berdasarkan Susenas Maret 2023 adalah
+
+\- Perkotaan: Rp. 614,436
+
+\- Perdesaan: Rp. 471,502
+
+```{r}
+kp3_202303 <- kp3_202303 %>%
+  mutate(GK = case_when(
+    r101 == 53 & r105 == 1 ~ 614436,
+    r101 == 53 & r105 == 2 ~ 471502,
+     TRUE ~ NA_real_ 
+  ))
+
+kp3_202303 <- kp3_202303 %>%
+  mutate(poverty = ifelse(kapita < GK, 1, 0))
+
+kp3_202303$poverty <- factor(kp3_202303$poverty, levels = c(0, 1), labels = c("Tidak miskin", "Miskin"))
+
+```
+
+### 1. Average household size
+
+```{r}
+expend_jart <- kp3_202303 %>%
+  group_by(poverty, r105) %>%
+  summarize(mean_r301 = weighted.mean(r301, w = wert, na.rm = TRUE), 
+            .groups = 'drop')
+expend_jart$r105 <- factor(expend_jart$r105, 
+                           levels = c(1, 2), 
+                           labels = c("Perkotaan", "Perdesaan"))
+
+jart <- ggplot(expend_jart, aes(x = r105, y = mean_r301, fill = poverty)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = round(mean_r301, 2)), 
+            position = position_dodge(width = 0.9), 
+            vjust = -0.5, 
+            color = "black") +
+  labs(
+    title = "Average Household Size by Region and Poverty Status",
+    x = "Region",
+    y = "Household Size"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("skyblue", "salmon"))
+print(jart)
+```
+
+### 2. Education
+
+Head of household education
+
+```{r}
+merged_kor1 <- merge(kor1_202303, kp3_202303, 
+                     by = c("D_R", "urut", "r101", "r102", "r105", "psu", "ssu", "wi1","wi2"), 
+                     all = TRUE)
+merged_kor1 <- merged_kor1 %>%
+  mutate(didik5kat = case_when(
+    r407 >= 5 & r614 == 25 ~ 1,
+    r407 >= 5 & r614 %in% 1:5 ~ 2,
+    r407 >= 5 & r614 %in% 6:10 ~ 3,
+    r407 >= 5 & r614 %in% 11:17 ~ 4,
+    r407 >= 5 & r614 %in% 18:24 ~ 5,
+    TRUE ~ NA_real_ 
+  ))
+merged_kor1 <- merged_kor1 %>%
+  mutate(didik5kat = factor(didik5kat,
+                             levels = 1:5,
+                             labels = c("Tidak Tamat SD", "SD", "SMP", "SMA", "Perguruan Tinggi"))) %>%
+  set_variable_labels(didik5kat = "Pendidikan Tertinggi")
+
+
+krt_edu <- merged_kor1 %>%
+  filter(r403 == 1) %>%
+  filter(!is.na(didik5kat)) %>%
+  count(r105, poverty, didik5kat, wt = wert) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(krt_edu)
+```
+
+### 3. Housing
+
+#### a) Home ownership
+
+```{r}
+korrt_202303 <- korrt_202303 %>%
+  rename(urut = URUT, r101 = R101, r102 = R102, r105 = R105, psu = PSU, ssu = SSU, wi1 = WI1, wi2 = WI2)
+merged_kor2 <- merge(korrt_202303, kp3_202303, 
+                     by = c("urut", "r101", "r102", "r105", "psu", "ssu", "wi1","wi2"), 
+                     all = TRUE)
+
+merged_kor2 <- merged_kor2 %>%
+  mutate(R1802_label = case_when(
+    R1802 == 1 ~ "Milik Sendiri",
+    R1802 == 2 ~ "Kontrak/Sewa",
+    R1802 >= 3 ~ "Lainnya",
+    TRUE ~ "Unknown"
+  )) %>%
+  mutate(R1802_label = factor(R1802_label, levels = c("Milik Sendiri", "Kontrak/Sewa", "Lainnya")))
+
+ownership_reg <- merged_kor2 %>%
+  filter(!is.na(R1802)) %>%
+  count(r105, poverty, R1802_label, wt = wert) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(ownership_reg)
+
+ownership_all <- merged_kor2 %>%
+  filter(!is.na(R1802)) %>%
+  count(poverty, R1802_label, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(ownership_all)
+
+combined_ownership <- bind_rows(ownership_reg, ownership_all)
+combined_ownership$r105 <- factor(combined_ownership$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_ownership <- combined_ownership %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+own_chart <- ggplot(combined_ownership, aes(x = r105, y = percentage, fill = R1802_label)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  labs(title = "Home Ownership by Poverty and Region",
+       x = "Region",
+       y = "Percentage",
+       fill = "Ownership") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(own_chart)
+```
+
+#### b) Dwelling Floor Area
+
+```{r}
+merged_kor2 <- merged_kor2 %>%
+  mutate(R1804_new = case_when(
+    R1804 <= 19 ~ "<= 19",
+    R1804 %in% 20:49 ~ "20-49",
+    R1804 %in% 50:99 ~ "50-99",
+    R1804 %in% 100:149 ~ "100-149",
+    R1804 >= 150 ~ ">=150",
+    TRUE ~ "Unknown"
+  )) %>%
+  mutate(R1804_new = factor(R1804_new, levels = c("<= 19", "20-49", "50-99", "100-149", ">=150")))
+
+
+floor_reg <- merged_kor2 %>%
+  filter(!is.na(R1804_new)) %>%
+  count(r105, poverty, R1804_new, wt = wert) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(ownership_reg)
+
+floor_all <- merged_kor2 %>%
+  filter(!is.na(R1804_new)) %>%
+  count(poverty, R1804_new, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(ownership_all)
+
+combined_floor <- bind_rows(floor_reg, floor_all)
+combined_floor$r105 <- factor(combined_floor$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_floor <- combined_floor %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+floor_chart <- ggplot(combined_floor, aes(x = r105, y = percentage, fill = R1804_new)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  labs(title = "Dwelling Floor Area by Poverty and Region",
+       x = "Region",
+       y = "Percentage",
+       fill = "Dwelling Floor Area") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(floor_chart)
+
+```
+
+#### c) Dwelling Floor Area per Capita
+
+```{r}
+merged_kor2 <- merged_kor2 %>%
+  mutate(area = R1804 / R301,
+         floor_cap = case_when(
+           area <= 8 ~ 1,
+           area > 8 & area <= 15 ~ 2,
+           area > 15 ~ 3
+         ))
+
+merged_kor2 <- merged_kor2 %>%
+  mutate(floor_cap = factor(floor_cap, 
+                             levels = c(1, 2, 3),
+                             labels = c('<= 8', '8-15', '> 15')))
+
+floorcap_reg <- merged_kor2 %>%
+  filter(!is.na(floor_cap)) %>%
+  count(r105, poverty, floor_cap, wt = FWT) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(floorcap_reg)
+
+floorcap_all <- merged_kor2 %>%
+  filter(!is.na(floor_cap)) %>%
+  count(poverty, floor_cap, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(floorcap_all)
+
+combined_floorcap <- bind_rows(floorcap_reg, floorcap_all)
+combined_floorcap$r105 <- factor(combined_floorcap$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_floorcap <- combined_floorcap %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+floorcap_chart <- ggplot(combined_floorcap, aes(x = r105, y = percentage, fill = floor_cap)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  labs(title = "Dwelling Floor Area per Capita by Poverty and Region",
+       x = "Region",
+       y = "Percentage",
+       fill = "Dwelling Floor Area per Capita") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(floorcap_chart)
+```
+
+#### d) Main material of the floor
+
+```{r}
+merged_kor2 <- merged_kor2 %>%
+  mutate(floor = case_when(
+    R1808 == 8 ~ 2,
+    TRUE ~ 1
+  ))
+merged_kor2 <- merged_kor2 %>%
+  mutate(floor = factor(floor, 
+         levels = c(1, 2),
+         labels = c('Bukan Tanah', 'Tanah')))
+
+floor_reg <- merged_kor2 %>%
+  filter(!is.na(floor)) %>%
+  count(r105, poverty, floor, wt = FWT) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(floor_reg)
+
+floor_all <- merged_kor2 %>%
+  filter(!is.na(floor)) %>%
+  count(poverty, floor, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(floor_all)
+
+combined_floor <- bind_rows(floor_reg, floor_all)
+combined_floor$r105 <- factor(combined_floor$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_floor <- combined_floor %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+floor_chart <- ggplot(combined_floor, aes(x = r105, y = percentage, fill = floor)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  labs(title = "The Main Material of The Widest Dwelling Floor by Poverty and Region",
+       x = "Region",
+       y = "Percentage",
+       fill = "Main Material") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(floor_chart)
+```
+
+#### e) The main material of the widest wall
+
+```{r}
+merged_kor2 <- merged_kor2 %>%
+ mutate(wall = case_when(
+    R1807 == 1 ~ 1,
+    R1807 %in% c(3, 5) ~ 2,
+    R1807 %in% c(2, 4, 6) ~ 3,
+    TRUE ~ 4
+  ))
+merged_kor2 <- merged_kor2 %>%
+  mutate(wall = factor(wall, 
+         levels = c(1, 2, 3, 4),
+         labels = c('Tembok', 'Kayu', 'Bambu', 'Lainnya')))
+
+wall_reg <- merged_kor2 %>%
+  filter(!is.na(wall)) %>%
+  count(r105, poverty, wall, wt = FWT) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(wall_reg)
+
+wall_all <- merged_kor2 %>%
+  filter(!is.na(wall)) %>%
+  count(poverty, wall, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(wall_all)
+
+combined_wall <- bind_rows(wall_reg, wall_all)
+combined_wall$r105 <- factor(combined_wall$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_wall <- combined_wall %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+wall_chart <- ggplot(combined_wall, aes(x = r105, y = percentage, fill = wall)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  labs(title = "The Main Material of The Widest Dwelling Wall by Poverty and Region",
+       x = "Region",
+       y = "Percentage",
+       fill = "Main Material") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(wall_chart)
+```
+
+#### f) Main material of the widest roof
+
+```{r}
+merged_kor2 <- merged_kor2 %>%
+ mutate(roof = case_when(
+    R1806 %in% c(1, 2, 6) ~ 1,
+    R1806 %in% c(3, 4) ~ 2,
+    R1806 == 7 ~ 3,        
+    R1806 %in% c(5, 8) ~ 4 
+  ))
+merged_kor2 <- merged_kor2 %>%
+  mutate(roof = factor(roof, 
+         levels = c(1, 2, 3, 4),
+         labels = c('Beton/ Genteng/ Sirap', 'Seng/ Asbes', 'Ijuk/ Rumbia', 'Lainnya')))
+
+roof_reg <- merged_kor2 %>%
+  filter(!is.na(roof)) %>%
+  count(r105, poverty, roof, wt = FWT) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(roof_reg)
+
+roof_all <- merged_kor2 %>%
+  filter(!is.na(roof)) %>%
+  count(poverty, roof, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(roof_all)
+
+combined_roof <- bind_rows(roof_reg, roof_all)
+combined_roof$r105 <- factor(combined_roof$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_roof <- combined_roof %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+roof_chart <- ggplot(combined_roof, aes(x = r105, y = percentage, fill = roof)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  labs(title = "The Main Material of The Widest Dwelling Roof by Poverty and Region",
+       x = "Region",
+       y = "Percentage",
+       fill = "Main Material") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(roof_chart)
+```
+
+#### g) Restroom facilities used by the household
+
+```{r}
+merged_kor2 <- merged_kor2 %>%
+  mutate(restroom = case_when(
+    R1809A == 1 ~ 1,
+    R1809A %in% 2:3 ~ 2,
+    TRUE ~ 3 
+  ))
+
+merged_kor2 <- merged_kor2 %>%
+  mutate(restroom = factor(restroom, 
+                         levels = c(1, 2, 3),
+                         labels = c('Jamban Sendiri', 'Jamban Bersama/Komunal', 'Jamban Umum/ Tidak ada')))
+
+restroom_reg <- merged_kor2 %>%
+  filter(!is.na(restroom)) %>%
+  count(r105, poverty, restroom, wt = FWT) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(restroom_reg)
+
+restroom_all <- merged_kor2 %>%
+  filter(!is.na(restroom)) %>%
+  count(poverty, restroom, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(restroom_all)
+
+combined_restroom <- bind_rows(restroom_reg, restroom_all)
+combined_restroom$r105 <- factor(combined_restroom$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_restroom <- combined_restroom %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+restroom_chart <- ggplot(combined_restroom, aes(x = r105, y = percentage, fill = restroom)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  labs(title = "Restroom Facilities by Poverty and Region",
+       x = "Region",
+       y = "Percentage",
+       fill = "Main Material") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(restroom_chart)
+
+```
+
+#### h) Safe drinking water consumed by household
+
+```{r}
+merged_kor2 <- merged_kor2 %>%
+  mutate(safe_dw = case_when(
+    R1810A %in% c(3, 4, 5, 7, 10) ~ 1,
+    R1810A %in% c(1, 2) & R1814A %in% c(3, 4, 5, 7, 10) ~ 1,
+    TRUE ~ 0
+  ))
+
+merged_kor2 <- merged_kor2 %>%
+  mutate(safe_dw = factor(safe_dw, 
+                            levels = c(0, 1),
+                            labels = c("Tidak ada akses", "Ada akses")))
+
+safe_dw_reg <- merged_kor2 %>%
+  filter(!is.na(safe_dw)) %>%
+  count(r105, poverty, safe_dw, wt = FWT) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(safe_dw_reg)
+
+safe_dw_all <- merged_kor2 %>%
+  filter(!is.na(safe_dw)) %>%
+  count(poverty, safe_dw, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(safe_dw_all)
+
+combined_safe_dw <- bind_rows(safe_dw_reg, safe_dw_all)
+combined_safe_dw$r105 <- factor(combined_safe_dw$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_safe_dw <- combined_safe_dw %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+safe_dw_chart <- ggplot(combined_safe_dw, aes(x = r105, y = percentage, fill = safe_dw)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  labs(title = "Access to Safe Drinking Water by Poverty and Region",
+       x = "Region",
+       y = "Percentage",
+       fill = "Main Material") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(safe_dw_chart)
+```
