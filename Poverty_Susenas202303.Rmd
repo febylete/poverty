@@ -88,6 +88,8 @@ combined_jart <- bind_rows(expend_jart, expend_jartall)
 combined_jart <- combined_jart %>%
   mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
 
+print(expend_jartall)
+
 
 jart <- ggplot(combined_jart, aes(x = r105, y = mean_r301, fill = poverty)) +
   geom_bar(stat = "identity", position = "dodge") +
@@ -102,6 +104,9 @@ jart <- ggplot(combined_jart, aes(x = r105, y = mean_r301, fill = poverty)) +
   theme_minimal() +
   scale_fill_manual(values = c("skyblue", "salmon"))
 print(jart)
+
+
+
 ```
 
 ### 2. Education
@@ -170,6 +175,65 @@ edu_chart <- ggplot(combined_edu, aes(x = r105, y = percentage, fill = didik5kat
   theme(plot.title = element_text(hjust = 0.5))
 
 print(edu_chart)
+
+eduall_chart <- ggplot(krt_eduall, aes(x = didik5kat, y = percentage, fill = didik5kat)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_dodge(width = 0.9), 
+            vjust = -0.6, 
+            size = 2,
+            color = "black") +
+  labs(x = "",
+       y = "Persentase",
+       fill = "Tingkat Pendidikan") +
+  theme(plot.title = element_text(hjust = 0.5),
+         legend.position = "bottom")
+
+library(ggplot2)
+
+eduall_chart <- ggplot(krt_eduall, aes(x = didik5kat, y = percentage, fill = didik5kat)) + 
+  geom_bar(stat = "identity", width = 0.6, color = "white") +  # Use width to control bar thickness
+  coord_polar(theta = "y") +  # Convert the bar chart to a circular format
+  facet_wrap(~poverty) + 
+  theme_minimal() + 
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_stack(vjust = 0.5),  # Center the labels inside the bars
+            size = 3, 
+            color = "black") + 
+  labs(x = "", 
+       y = "",  # No y-axis label needed for circular bars
+       fill = "Tingkat Pendidikan") + 
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.position = "bottom", 
+        axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis text for better visibility
+        panel.grid = element_blank())  # Remove gridlines
+
+print(eduall_chart)
+
+library(ggplot2)
+
+edualls_chart <- ggplot(krt_eduall, aes(x = didik5kat, y = percentage, fill = didik5kat)) + 
+  geom_bar(stat = "identity", width = 0.6, color = "white") +  # Use width to control bar thickness
+  coord_polar(theta = "y") +  # Convert the bar chart to a circular format
+  facet_wrap(~poverty) + 
+  theme_minimal() + 
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_stack(vjust = 0.5),  # Center the labels inside the bars
+            size = 3, 
+            color = "black") + 
+  labs(x = "", 
+       y = "",  # No y-axis label needed for circular bars
+       fill = "Tingkat Pendidikan") + 
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.position = "bottom", 
+        axis.text.x = element_blank(),  # Remove x-axis text
+        axis.ticks.x = element_blank(),  # Remove x-axis ticks
+        panel.grid = element_blank())  # Remove gridlines
+
+print (edualls_chart)
+
 ```
 
 ### 3. Housing
@@ -349,6 +413,24 @@ floorcap_chart <- ggplot(combined_floorcap, aes(x = r105, y = percentage, fill =
   theme(plot.title = element_text(hjust = 0.5))
 
 print(floorcap_chart)
+
+floorcapall_chart <- ggplot(floorcap_all, aes(x = floor_cap, y = percentage, fill = floor_cap)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_dodge(width = 1), 
+            vjust = -1, 
+            size = 3,
+            color = "black") +
+  labs(
+       x = "",
+       y = "Persentase",
+       fill = "Luas Lantai per Kapita") +
+  theme(plot.title = element_text(hjust = 0.5),
+   panel.spacing = unit(2, "lines"))
+
+print(floorcapall_chart)
 ```
 
 #### d) Main material of the floor
@@ -588,6 +670,27 @@ restroom_chart <- ggplot(combined_restroom, aes(x = r105, y = percentage, fill =
 
 print(restroom_chart)
 
+restroomall_chart <- ggplot(restroom_all, aes(x = restroom, y = percentage, fill = restroom)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_dodge(width = 1), 
+            vjust = -0.5, 
+            size = 3,
+            color = "black") +
+  labs(
+       x = "",
+       y = "Persentase",
+       fill = "Fasilitas") +
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom",
+        panel.spacing = unit(2, "lines"))
+
+print(restroomall_chart)
+
+
+
 ```
 
 #### h) Safe drinking water consumed by household
@@ -704,6 +807,45 @@ lighting_chart <- ggplot(combined_lighting, aes(x = r105, y = percentage, fill =
   theme(plot.title = element_text(hjust = 0.5))
 
 print(lighting_chart)
+
+lightingall_chart <- ggplot(lighting_all, aes(x = R1816_label, y = percentage, fill = R1816_label)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_dodge(width = 1), 
+            vjust = -0.5, 
+            size = 3,
+            color = "black") +
+  labs(
+       x = "",
+       y = "Persentase",
+       fill = "") +
+  theme(plot.title = element_text(hjust = 0.5),
+         legend.position = "bottom",
+        panel.spacing = unit(2, "lines"))
+
+print(lightingall_chart)
+
+lightingall_chart <- ggplot(lighting_all, aes(x = "", y = percentage, fill = R1816_label)) + 
+  geom_bar(stat = "identity", width = 1) + 
+  coord_polar(theta = "y") +  # Converts the bar chart to a pie chart
+  facet_wrap(~poverty) + 
+  theme_minimal() + 
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_stack(vjust = 0.5),  # Positions the text labels inside the pie chart
+            size = 3, 
+            color = "black") + 
+  labs( 
+       x = "", 
+       y = "",  # No y-axis label needed for pie chart
+       fill = "") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom", 
+        panel.spacing = unit(2, "lines"))
+
+print(lightingall_chart)
+
 ```
 
 
@@ -798,6 +940,20 @@ cal_chart <- ggplot(combined_calorie, aes(x = r105, y = mean_calorie, fill = pov
   theme_minimal() +
   scale_fill_manual(values = c("skyblue", "salmon"))
 print(cal_chart)
+
+calorie_kab <- kp3_202303 %>%
+  group_by(poverty, r102) %>%
+  summarize(mean_calorie = weighted.mean(kalori_kap, w = wert, na.rm = TRUE), 
+            .groups = 'drop')
+print(calorie_kab)
+
+calorie_kab_total <- kp3_202303 %>%
+  group_by (r102) %>%
+  summarize(mean_calorie = weighted.mean(kalori_kap, w = wert, na.rm = TRUE),
+            .groups = 'drop')
+print(calorie_kab_total)
+
+
 ```
 
 
@@ -814,6 +970,8 @@ kp3_202303 <- kp3_202303 %>%
 kp3_202303$poverty_ref <- factor(kp3_202303$poverty_ref, 
                           levels = c(1, 2, 3, 4, 5), 
                           labels = c("Sangat Miskin", "Miskin", "Hampir Miskin", "Rentan Miskin Lainnya", "Tidak Miskin"))
+
+ref <- kp3_202303 %>%
 
 
 kp3_202303 <- kp3_202303 %>%
@@ -886,6 +1044,50 @@ f_chart <- ggplot(combined_food, aes(x = poverty, y = percentage, fill = food)) 
 
 print(f_chart)
 
+food_sec_reg <- merged_kor2 %>%
+  group_by(r105, food) %>%
+  summarise(weighted_count = sum(FWT), .groups = 'drop') %>%
+  group_by(r105) %>%
+  mutate(total_weight = sum(weighted_count),
+         percentage = (weighted_count / total_weight) * 100)
+print(food_sec_reg)
+
+fall_chart <- ggplot(food_secall, aes(x = food, y = percentage, fill = food)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ poverty) +
+  labs(x = "", y = "Persentase", fill = "")+
+  geom_text(aes(label = scales::percent(percentage / 100)),
+            position = position_dodge(width = 0.9), 
+            size = 3,
+            vjust = -0.5) +
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom",
+        panel.spacing = unit(2, "lines"))
+
+print(fall_chart)
+
+library(ggplot2)
+
+falls_chart <- ggplot(food_secall, aes(x = 2, y = percentage, fill = food)) + 
+  geom_bar(stat = "identity", width = 1, color = "white") +  # Use width=1 to make the bars circular, color='white' for slice separation
+  coord_polar(theta = "y") +  # Converts bar chart to a pie chart
+  facet_wrap(~ poverty) + 
+  theme_minimal() + 
+  geom_text(aes(label = scales::percent(percentage / 100)), 
+            position = position_stack(vjust = 0.5),  # Position labels in the middle of the slices
+            size = 3, 
+            color = "black") + 
+  labs(x = "", y = "", fill = "Food Type") +  # Adding an appropriate label for the legend
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom", 
+        panel.spacing = unit(2, "lines"),  # Spacing between facets
+        axis.text = element_blank(),  # Hide axis text
+        axis.ticks = element_blank(),  # Hide axis ticks
+        panel.grid = element_blank()) +  # Hide gridlines
+  xlim(0.5, 2.5)  # Creates the 'donut hole' effect by limiting the x-axis
+
+print(falls_chart)
+
 ```
 
 
@@ -902,7 +1104,7 @@ asset_own <- merged_kor2 %>%
          percentage = (weighted_count / total_weight) * 100)
 
 asset_own$r105 <- factor(asset_own$r105, levels = c(1, 2), labels = c("Pekotaan", "Perdesaan"))
-asset_own$food <- factor(asset_own$asset, levels = c(0, 1), labels = c("Tidak Memiliki Aset", "Memiliki Aset"))
+asset_own$asset <- factor(asset_own$asset, levels = c(0, 1), labels = c("Tidak Memiliki Aset", "Memiliki Aset"))
 
 asset_ownall <- merged_kor2 %>%
   group_by(poverty, asset) %>%
@@ -911,13 +1113,13 @@ asset_ownall <- merged_kor2 %>%
   mutate(total_weight = sum(weighted_count),
          percentage = (weighted_count / total_weight) * 100)
 
-asset_ownall$food <- factor(asset_ownall$asset, levels = c(0, 1), labels = c("Tidak Memiliki Aset", "Memiliki Aset"))
+asset_ownall$asset <- factor(asset_ownall$asset, levels = c(0, 1), labels = c("Tidak Memiliki Aset", "Memiliki Aset"))
 
 combined_asset <- bind_rows(asset_own, asset_ownall)
 combined_asset <- combined_asset %>%
   mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
 
-a_chart <- ggplot(combined_asset, aes(x = poverty, y = percentage, fill = food)) +
+a_chart <- ggplot(combined_asset, aes(x = poverty, y = percentage, fill = asset)) +
   geom_bar(stat = "identity", position = "dodge") +
   facet_wrap(~ r105) +
   labs(x = "Poverty", y = "Persentase", fill = "Kepemilikan Aset",
@@ -929,6 +1131,30 @@ a_chart <- ggplot(combined_asset, aes(x = poverty, y = percentage, fill = food))
             vjust = -0.5)
 
 print(a_chart)
+
+library(ggplot2)
+
+all_chart <- ggplot(asset_ownall, aes(x = 2, y = percentage, fill = asset)) + 
+  geom_bar(stat = "identity", width = 1, color = "white") +  # Use width=1 for circular bars
+  coord_polar(theta = "y") +  
+  facet_wrap(~ poverty) + 
+  labs(x = "", y = "", fill = "Kepemilikan Aset") + 
+  theme_minimal() + 
+  geom_text(aes(label = scales::percent(percentage / 100)), 
+            position = position_stack(vjust = 0.5),  # Position labels in the center of the slices
+            size = 3, 
+            color = "black") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom", 
+        panel.spacing = unit(0.5, "lines"),  # Spacing between facets
+        axis.text = element_blank(),  # Hide axis text
+        axis.ticks = element_blank(),  # Hide axis ticks
+        panel.grid = element_blank()) + 
+  xlim(0.5, 2.5)  # Creates the 'donut hole' effect
+
+print(all_chart)
+
+
 ```
 
 
