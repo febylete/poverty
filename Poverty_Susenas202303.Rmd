@@ -26,6 +26,7 @@ kp3_202303 <- read_sav("kp43.sav")
 kor1_202303 <- read_sav("kor_ind1.sav")
 kor2_202303 <- read.dbf("53_ssn_202303_kor_ind2.dbf")
 korrt_202303 <- read.dbf("53_ssn_202303_kor_rt_rev.dbf")
+kp41_202303 <- read.dbf("53_ssn_202303_kp_blok41.dbf")
 
 kp3_202303 <- kp3_202303 %>%
   mutate(GK = case_when(
@@ -48,6 +49,7 @@ korrt_202303 <- korrt_202303 %>%
 merged_kor2 <- merge(korrt_202303, kp3_202303, 
                      by = c("urut", "r101", "r102", "r105", "psu", "ssu", "wi1","wi2"), 
                      all = TRUE)
+
 
 ```
 
@@ -1156,5 +1158,75 @@ print(all_chart)
 
 
 ```
+Konsumsi Ikan Kembung Segar
 
+```{r}
+
+#filtered_data <- kp41_202303 %>% filter(COICOP == "01131028")
+#print(filtered_data)
+
+# Filter data hanya untuk kode COICOP 01131208
+ikan_kembung <- kp41_202303 %>%
+  filter(COICOP == "01131028") %>%
+  mutate(
+    konsumsi_berat = (B41K5 + B41K7) * WEIND # Menghitung konsumsi dengan penimbang
+  )
+
+# Hitung total konsumsi untuk ikan kembung
+total_konsumsi_kembung <- ikan_kembung %>%
+  group_by(R101) %>%  # Misalnya identitas rumah tangga (atau ganti sesuai kebutuhan)
+  summarise(
+    total_konsumsi_kg = sum(konsumsi_berat, na.rm = TRUE)
+  ) %>%
+  mutate(komoditas = "kembung")
+
+# Lihat hasil
+print(total_konsumsi_kembung)
+
+#Gabung dengan yang diawetkan
+
+
+# Filter data ikan kembung
+ikan_kembungall <- kp41_202303 %>%
+  filter(COICOP %in% c("01131028", "01133021/26/37")) %>%
+  mutate(
+    # Konversi ons ke kilogram (hanya untuk kode tertentu)
+    B41K5_kg = ifelse(COICOP %in% c("01133021/26/37"), B41K5 * 0.1, B41K5),
+    B41K7_kg = ifelse(COICOP %in% c("01133021/26/37"), B41K7 * 0.1, B41K7),
+    # Total konsumsi dengan penimbang
+    konsumsi_berat = (B41K5_kg + B41K7_kg) * WEIND
+  )
+
+# Hitung total konsumsi dengan penimbang
+total_konsumsi_kembungall <- ikan_kembung %>%
+  group_by(R101) %>%  
+  summarise(
+    total_konsumsi_kg = sum(konsumsi_berat, na.rm = TRUE)
+  ) %>%
+  mutate(komoditas = "kembung")
+
+# Lihat hasil
+print(total_konsumsi_kembungall)
+
+
+
+
+```
+```{r}
+ikan_kembung <- kp41_202303 %>%
+  filter(COICOP == "01131028") %>%
+  mutate(
+    konsumsi_berat = (B41K5 + B41K7) * WEIND
+  )
+
+# Hitung total konsumsi untuk ikan kembung
+total_konsumsi_kembung <- ikan_kembung %>%
+  group_by(R101) %>%
+  summarise(
+    total_konsumsi_kg = sum(konsumsi_berat, na.rm = TRUE)
+  ) %>%
+  mutate(komoditas = "kembung")
+print(total_konsumsi_kembung)
+
+```
 
