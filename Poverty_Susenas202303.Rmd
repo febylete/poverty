@@ -17,9 +17,10 @@ library(tidyr)
 library(labelled)
 library(ggplot2)
 library(ggrepel)
+library(writexl)
 ```
 
-Load Datasets
+Load Dataset
 
 ```{r, echo=FALSE}
 kp3_202303 <- read_sav("kp43.sav")
@@ -71,7 +72,6 @@ Garis kemiskinan di NTT berdasarkan Susenas Maret 2023 adalah
 
 ### 1. Average household size
 
-
 ```{r, echo=FALSE}
 expend_jart <- kp3_202303 %>%
   group_by(poverty, r105) %>%
@@ -114,7 +114,6 @@ print(jart)
 ### 2. Education
 
 Head of household education
-
 
 ```{r, echo=FALSE}
 merged_kor1 <- merged_kor1 %>%
@@ -850,10 +849,10 @@ print(lightingall_chart)
 
 ```
 
-
 ### 4. Consumption
 
 #### a) Average Daily Per Capita Protein Consumption
+
 ```{r, echo=FALSE}
 protein <- kp3_202303 %>%
   group_by(poverty, r105) %>%
@@ -907,7 +906,6 @@ print(protein_scatter)
 
 ```
 
-
 #### c) Average Daily Per Capita Calorie Consumption
 
 ```{r,  echo=FALSE}
@@ -958,7 +956,6 @@ print(calorie_kab_total)
 
 ```
 
-
 ```{r}
 kp3_202303 <- kp3_202303 %>%
   mutate(poverty_ref = case_when(
@@ -1003,9 +1000,7 @@ summary_data <- kp3_202303 %>%
 
 ```
 
-
-
-#### d) Food Insecurity 
+#### d) Food Insecurity
 
 ```{r,  echo=FALSE}
 merged_kor2$food <- apply(merged_kor2[, c("R1704", "R1705", "R1706", "R1707", "R1708")], 1, function(x) ifelse(any(x == 1), 1, 0))
@@ -1092,7 +1087,6 @@ print(falls_chart)
 
 ```
 
-
 ### 5. Asset Ownership
 
 ```{r,  echo=FALSE}
@@ -1158,10 +1152,10 @@ print(all_chart)
 
 
 ```
+
 Konsumsi Ikan Kembung Segar
 
 ```{r}
-
 #filtered_data <- kp41_202303 %>% filter(COICOP == "01131028")
 #print(filtered_data)
 
@@ -1184,8 +1178,9 @@ total_konsumsi_kembung <- ikan_kembung %>%
 print(total_konsumsi_kembung)
 
 #Gabung dengan yang diawetkan
+```
 
-
+```{r}
 # Filter data ikan kembung
 ikan_kembungall <- kp41_202303 %>%
   filter(COICOP %in% c("01131028", "01133021/26/37")) %>%
@@ -1212,6 +1207,7 @@ print(total_konsumsi_kembungall)
 
 
 ```
+
 ```{r}
 ikan_kembung <- kp41_202303 %>%
   filter(COICOP == "01131028") %>%
@@ -1228,5 +1224,771 @@ total_konsumsi_kembung <- ikan_kembung %>%
   mutate(komoditas = "kembung")
 print(total_konsumsi_kembung)
 
+```
+
+Pemberian bansos dari susenas
+
+```{r}
+#jenis bantuan
+merged_kor2 <- merged_kor2 %>%
+  mutate(
+    kks = ifelse(R2202 %in% c(1, 2), 1, 0),
+    pkh = ifelse(R2203 == 1, 1, 0),
+    atensi_lansia = ifelse(R2205A == 1, 1, 0),
+    bsu = ifelse(R2206A == 1, 1, 0),
+    bpnt = ifelse(R2207 == 1, 1, 0),
+    blt_bbm = ifelse(R2209A == 1, 1, 0),
+    blt_desa = ifelse(R2209B == 1, 1, 0),
+    blt_pktd = ifelse(R2209C == 1, 1, 0),
+    bpn = ifelse(R2210B1 == 1 | R2210B2 == 1 | R2210B3 == 1 | R2210B4 == 1 | R2210B5 == 1, 1, 0)
+  )
+
+#jumlah bantuan
+merged_kor2 <- merged_kor2 %>%
+  mutate(bansos = kks + pkh + atensi_lansia + bsu + bpnt + blt_bbm + blt_desa + blt_pktd + bpn)
+
+#recode jumlah bantuan
+merged_kor2 <- merged_kor2 %>%
+  mutate(
+    bansos_recode = case_when(
+      bansos == 0 ~ "Tidak menerima program",                
+      bansos == 1 ~ "Menerima 1 program",                
+      bansos > 1 & bansos < 5 ~ "Menerima 2-4 program",    
+      bansos >= 5 ~ "Menerima >= 5 program"             
+    )
+  )
+
+```
+
+```{r}
+
+merged_kor2 <- merged_kor2 %>%
+  mutate(
+    Desilprov = as.factor(Desilprov),
+    bansos_recode = as.factor(bansos_recode)
+  )
+
+merged_kor2 <- merged_kor2 %>%
+  mutate(
+    bansos_recode = factor(
+      bansos_recode,
+      levels = c(
+        "Menerima 1 program",
+        "Menerima 2-4 program",
+        "Menerima >= 5 program",
+        "Tidak menerima program"
+      )))
+
+plot_data <- merged_kor2 %>%
+  group_by(Desilprov, bansos_recode) %>%
+  summarise(weighted_count = sum(wert), .groups = "drop") %>%
+  group_by(Desilprov) %>%
+  mutate(percentage = weighted_count / sum(weighted_count) * 100)
+
+ggplot(plot_data, aes(x = Desilprov, y = percentage, fill = bansos_recode)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  labs(
+    title = "Persentase Rumah Tangga Berdasarkan Desil dan Jumlah Bantuan Maret 2023",
+    x = "Desil",
+    y = "Persentase Rumah Tangga (%)",
+    fill = "Jumlah bantuan"
+  ) +
+  theme_minimal()
+
+print(plot_data)
+
+```
+
+### 6. Susenas Maret 2024
+
+```{r}
+kp3_202403 <- read.dbf("53_ssn_202403_kp_blok43.dbf")
+korrt_202403 <- read.dbf("53_ssn_202403_kor_rt.dbf")
+korind_202403 <- read.dbf("53_ssn_202403_kor_ind1.dbf")
+
+kp3_202403 <- kp3_202403 %>%
+  mutate(GK = case_when(
+    R101 == 53 & R105 == 1 ~ 638261,
+    R101 == 53 & R105 == 2 ~ 488995,
+     TRUE ~ NA_real_ 
+  ))
+
+kp3_202403 <- kp3_202403 %>%
+  mutate(poverty = ifelse(KAPITA < GK, 1, 0))
+
+kp3_202403$poverty <- factor(kp3_202403$poverty, levels = c(0, 1), labels = c("Tidak miskin", "Miskin"))
+
+merged_kor2_24 <- merge(korrt_202403, kp3_202403, 
+                     by = c("URUT", "R101", "R102", "R105", "WI1","WI2"), 
+                     all = TRUE)
+merged_korind_24 <-merge(korind_202403, kp3_202403,
+                         by = c("URUT", "R101", "R102", "R105", "WI1","WI2"), 
+                     all = TRUE)
+
+#Desil
+merged_kor2_24 <- merged_kor2_24 %>%
+  arrange(KAPITA) %>% 
+  mutate(
+    cum_weight = cumsum(WERT),               
+    total_weight = sum(WERT),              
+    quantil = cut(
+      cum_weight / total_weight,             
+      breaks = seq(0, 1, by = 0.2),         
+      labels = 1:5,                          
+      include.lowest = TRUE
+    ),
+    desil = cut(
+      cum_weight / total_weight,             
+      breaks = seq(0, 1, by = 0.1),          
+      labels = 1:10,                         
+      include.lowest = TRUE
+    )
+  )
+
+
+merged_korind_24 <- merged_korind_24 %>%
+  arrange(KAPITA) %>% 
+  mutate(
+    cum_weight = cumsum(WERT),               
+    total_weight = sum(WERT),              
+    quantil = cut(
+      cum_weight / total_weight,             
+      breaks = seq(0, 1, by = 0.2),         
+      labels = 1:5,                          
+      include.lowest = TRUE
+    ),
+    desil = cut(
+      cum_weight / total_weight,             
+      breaks = seq(0, 1, by = 0.1),          
+      labels = 1:10,                         
+      include.lowest = TRUE
+    )
+  )
+```
+
+Penerimaan bansos
+```{r}
+merged_kor2_24 <- merged_kor2_24 %>%
+  mutate(
+    kks = ifelse(R2202 %in% c(1, 2), 1, 0),
+    pkh = ifelse(R2203 == 1, 1, 0),
+    atensi_lansia = ifelse(R2205A == 1, 1, 0),
+    bpnt = ifelse(R2207 == 1, 1, 0),
+    blt_bbm = ifelse(R2209A == 1, 1, 0),
+    blt_desa = ifelse(R2209B == 1, 1, 0),
+    blt_pktd = ifelse(R2209C == 1, 1, 0),
+    bpn = ifelse(R2210B1 == 1 | R2210B2 == 1 | R2210B3 == 1 | R2210B4 == 1 | R2210B5 == 1, 1, 0)
+  )
+
+#jumlah bantuan
+merged_kor2_24 <- merged_kor2_24 %>%
+  mutate(bansos = kks + pkh + atensi_lansia + bpnt + blt_bbm + blt_desa + blt_pktd + bpn)
+
+#recode jumlah bantuan
+merged_kor2_24 <- merged_kor2_24 %>%
+  mutate(
+    bansos_recode = case_when(
+      bansos == 0 ~ "Tidak menerima program",                
+      bansos == 1 ~ "Menerima 1 program",                
+      bansos > 1 & bansos < 5 ~ "Menerima 2-4 program",    
+      bansos >= 5 ~ "Menerima >= 5 program"             
+    )
+  )
+
+merged_kor2_24 <- merged_kor2_24 %>%
+  mutate(
+    desil = as.factor(desil),
+    bansos_recode = as.factor(bansos_recode)
+  )
+
+merged_kor2_24 <- merged_kor2_24 %>%
+  mutate(
+    bansos_recode = factor(
+      bansos_recode,
+      levels = c(
+        "Menerima 1 program",
+        "Menerima 2-4 program",
+        "Menerima >= 5 program",
+        "Tidak menerima program"
+      )))
+
+plot_data <- merged_kor2_24 %>%
+  group_by(desil, bansos_recode) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(desil) %>%
+  mutate(percentage = count / sum(count) * 100)
+
+ggplot(plot_data, aes(x = desil, y = percentage, fill = bansos_recode)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  labs(
+    title = "Persentase Rumah Tangga Berdasarkan Desil dan Jumlah Bantuan Sosial Maret 2024",
+    x = "Desil",
+    y = "Persentase Rumah Tangga (%)",
+    fill = "Jumlah Bantuan"
+  ) +
+  theme_minimal()
+
+print(plot_data)
+```
+
+```{r}
+# Tabel untuk Quintil
+tabel_quintil <- merged_kor2_24 %>%
+  group_by(quantil) %>%
+  summarise(
+    n = n(),                                # Jumlah observasi
+    total_bobot = sum(WEIND),              # Total bobot
+    rata_kapita = weighted.mean(KAPITA, WEIND), # Rata-rata tertimbang KAPITA
+    min_kapita = min(KAPITA),              # Nilai minimum
+    max_kapita = max(KAPITA)               # Nilai maksimum
+  )
+
+# Tabel untuk Desil
+tabel_desil <- merged_kor2_24 %>%
+  group_by(desil) %>%
+  summarise(
+    n = n(),                                # Jumlah observasi
+    total_bobot = sum(WEIND),              # Total bobot
+    rata_kapita = weighted.mean(KAPITA, WEIND), # Rata-rata tertimbang KAPITA
+    min_kapita = min(KAPITA),              # Nilai minimum
+    max_kapita = max(KAPITA)               # Nilai maksimum
+  )
+
+print(tabel_quintil)
+```
+
+```{r}
+merged_kor2_24 <- merged_kor2_24 %>%
+  mutate(safe_dw = case_when(
+    R1810A %in% c(3, 4, 5, 7, 10) ~ 1,
+    R1810A %in% c(1, 2) & R1814A %in% c(3, 4, 5, 7, 10) ~ 1,
+    TRUE ~ 0
+  ))
+
+#merged_kor2_24 <- merged_kor2_24 %>%
+ # mutate(safe_dw = factor(safe_dw, 
+  #                          levels = c(0, 1),
+   #                         labels = c("Tidak ada akses", "Ada akses")))
+
+```
+
+```{r}
+
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Define the selected regencies explicitly
+selected_regencies <- c(16, 20, 71, 9)
+
+# Filter dataset for selected regencies & ensure correct data types
+df_filtered <- merged_kor2_24 %>%
+  filter(R102 %in% selected_regencies) %>%
+  mutate(
+    safe_dw = as.numeric(as.character(safe_dw)),  # Ensure numeric Y-axis
+    desil = as.factor(desil),  # Ensure categorical X-axis
+    R102 = as.factor(R102)  # Ensure categorical faceting
+  )
+
+# Plot
+p <- ggplot(df_filtered, aes(x = desil, y = safe_dw)) + 
+  geom_jitter(aes(color = desil), width = 0.2, size = 2, alpha = 0.7) +  # Jitter to reduce overlap
+  geom_boxplot(aes(group = desil), alpha = 0.3, outlier.shape = NA) +  # Boxplot for distribution
+  facet_wrap(~ R102, ncol = 2) +  # Facet by regency
+  scale_color_viridis_d(option = "plasma") +  # Better color gradient
+  scale_y_continuous(breaks = c(0, 1), labels = c("Tidak Ada Akses", "Ada Akses")) + 
+  labs(
+    title = "Akses Air Minum Layak Menurut Desil Pengeluaran",
+    x = "Desil Pengeluaran",
+    y = "Rumah Tangga dengan Akses Air Minum Layak",
+    color = "Desil Pengeluaran"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+
+print(p)
+
+```
+
+```{r}
+p + scale_x_discrete(labels = c(
+  "9" = "Flores Timur",
+  "16" = "Sumba Tengah",
+  "20" = "Sabu Raijua",
+  "71" = "Kota Kupang"
+))
+ print (p)
+```
+
+```{r}
+df_filtered <- df_filtered %>%
+  mutate(regency_name = case_when(
+    R102 == 9  ~ "Flores Timur",
+    R102 == 16 ~ "Sumba Tengah",
+    R102 == 20 ~ "Sabu Raijua",
+    R102 == 71 ~ "Kota Kupang",
+    TRUE       ~ as.character(R102)  # Keep other names unchanged if needed
+  ))
+
+# Use `regency_name` in facet_wrap
+p <- ggplot(df_filtered, aes(x = desil, y = safe_dw)) + 
+  geom_jitter(aes(color = desil), width = 0.2, size = 2, alpha = 0.7) +  # Jitter to reduce overlap
+  geom_boxplot(aes(group = desil), alpha = 0.3, outlier.shape = NA) +  # Boxplot for distribution
+  facet_wrap(~ regency_name, ncol = 2) +  # Use regency_name instead of R102
+  scale_color_viridis_d(option = "plasma") +  # Better color gradient
+  scale_y_continuous(breaks = c(0, 1), labels = c("Tidak Ada Akses", "Ada Akses")) + 
+  labs(
+    title = "Akses Air Minum Layak Menurut Desil Pengeluaran",
+    x = "Desil Pengeluaran",
+    y = "Rumah Tangga dengan Akses Air Minum Layak",
+    color = "Desil Pengeluaran"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+
+print(p)
+
+
+```
+
+
+APS
+```{r}
+library(dplyr)
+
+#APS 7-12 tahun
+aps_7_12 <- korind_202403 %>%
+  filter(R407 >= 7 & R407 <= 12) %>% 
+  summarise(
+    total_bersekolah = sum(R610 == 2, na.rm = TRUE), 
+    total_penduduk = n(), 
+    APS = (total_bersekolah / total_penduduk) * 100  
+  )
+
+print(aps_7_12)
+
+#APS 13-15 tahun
+aps_13_15 <- korind_202403 %>%
+  filter(R407 >= 13 & R407 <= 15) %>% 
+  summarise(
+    total_bersekolah = sum(R610 == 2, na.rm = TRUE), 
+    total_penduduk = n(), 
+    APS = (total_bersekolah / total_penduduk) * 100  
+  )
+
+print(aps_13_15)
+
+```
+
+```{r}
+# Load library
+library(dplyr)
+
+# Hitung APS usia 7-12 tahun dengan tambahan klausul
+aps_7_12 <- korind_202403 %>%
+  filter(R407 >= 7 & R407 <= 12) %>%   # Filter usia 7-12 tahun
+  summarise(
+    total_bersekolah = sum(R610 == 2 & !R612 %in% c(1, 6, 11), na.rm = TRUE),  # Tambah syarat R612
+    total_penduduk = n(),  # Total penduduk usia 7-12 tahun
+    APS = (total_bersekolah / total_penduduk) * 100  # Hitung APS dalam persen
+  )
+
+# Tampilkan hasil
+print(aps_7_12)
+
+aps_13_15 <- korind_202403 %>%
+  filter(R407 >= 13 & R407 <= 15) %>%   # Filter usia 7-12 tahun
+  summarise(
+    total_bersekolah = sum(R610 == 2 & !R612 %in% c(1, 6, 11), na.rm = TRUE),  # Tambah syarat R612
+    total_penduduk = n(),  # Total penduduk usia 7-12 tahun
+    APS = (total_bersekolah / total_penduduk) * 100  # Hitung APS dalam persen
+  )
+
+# Tampilkan hasil
+print(aps_13_15)
+
+```
+```{r}
+merged_korind_24 <- merged_korind_24 %>%
+  mutate(aps_binary = ifelse(R610 == 2 & !R612 %in% c(1, 6, 11), 1, 0))
+
+```
+
+
+```{r}
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+# 1. Filter data for children aged 7-12 years
+korind_202403_filtered <- merged_korind_24 %>%
+  filter(R407 >= 7 & R407 <= 12)
+
+# 2. Create binary variable for school participation
+korind_202403_filtered <- korind_202403_filtered %>%
+  mutate(
+    APS_biner = ifelse(R610 == 2 & !(R612 %in% c(1, 6, 11)), 1, 0),  # 1 = Sekolah, 0 = Tidak Sekolah
+    desil = factor(desil, levels = 1:10, labels = paste0("Desil ", 1:10))  # Ensure desil is categorical
+  )
+
+# 3. Create the scatter + boxplot graph
+ggplot(korind_202403_filtered, aes(x = desil, y = APS_biner, color = desil)) + 
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +  # Jitter for better visibility
+  geom_boxplot(aes(group = desil), alpha = 0.3, outlier.shape = NA) +  # Boxplot to summarize distribution
+  scale_color_viridis_d(option = "plasma", begin = 0.1, end = 0.9) +  # Improved color contrast
+  scale_y_continuous(breaks = c(0, 1), labels = c("Tidak Sekolah", "Sekolah")) +  # Better y-axis labels
+  labs(
+    title = "Partisipasi Sekolah (7-12 Tahun)",
+    subtitle = "Berdasarkan Desil Pengeluaran",
+    x = "Desil Pengeluaran",
+    y = "Partisipasi Sekolah",
+    color = "Desil Pengeluaran"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",  # No need for legend since it's already on x-axis
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, face = "italic"),
+    axis.text = element_text(size = 12)
+  )
+
+
+```
+
+```{r}
+# 1. Filter data for children aged 13-15 years
+korind_202403_filtered <- merged_korind_24 %>%
+  filter(R407 >= 13 & R407 <= 15)
+
+# 2. Create binary variable for school participation
+korind_202403_filtered <- korind_202403_filtered %>%
+  mutate(
+    APS_biner = ifelse(R610 == 2, 1, 0),  # 1 = Sekolah, 0 = Tidak Sekolah
+    desil = factor(desil, levels = 1:10, labels = paste0("Desil ", 1:10))  # Ensure desil is categorical
+  )
+
+# 3. Create the scatter + boxplot graph
+ggplot(korind_202403_filtered, aes(x = desil, y = APS_biner, color = desil)) + 
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +  # Jitter for better visibility
+  geom_boxplot(aes(group = desil), alpha = 0.3, outlier.shape = NA) +  # Boxplot to summarize distribution
+  scale_color_viridis_d(option = "plasma", begin = 0.1, end = 0.9) +  # Improved color contrast
+  scale_y_continuous(breaks = c(0, 1), labels = c("Tidak Sekolah", "Sekolah")) +  # Better y-axis labels
+  labs(
+    title = "Partisipasi Sekolah (13-15 Tahun)",
+    subtitle = "Berdasarkan Desil Pengeluaran",
+    x = "Desil Pengeluaran",
+    y = "Partisipasi Sekolah",
+    color = "Desil Pengeluaran"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",  # No need for legend since it's already on x-axis
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, face = "italic"),
+    axis.text = element_text(size = 12)
+  )
+```
+
+```{r}
+# 1. Filter data for children aged 13-15 years
+korind_202403_filtered <- merged_korind_24 %>%
+  filter(R407 >= 16 & R407 <= 18)
+
+# 2. Create binary variable for school participation
+korind_202403_filtered <- korind_202403_filtered %>%
+  mutate(
+    APS_biner = ifelse(R610 == 2, 1, 0),  # 1 = Sekolah, 0 = Tidak Sekolah
+    desil = factor(desil, levels = 1:10, labels = paste0("Desil ", 1:10))  # Ensure desil is categorical
+  )
+
+# 3. Create the scatter + boxplot graph
+ggplot(korind_202403_filtered, aes(x = desil, y = APS_biner, color = desil)) + 
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +  # Jitter for better visibility
+  geom_boxplot(aes(group = desil), alpha = 0.3, outlier.shape = NA) +  # Boxplot to summarize distribution
+  scale_color_viridis_d(option = "plasma", begin = 0.1, end = 0.9) +  # Improved color contrast
+  scale_y_continuous(breaks = c(0, 1), labels = c("Tidak Sekolah", "Sekolah")) +  # Better y-axis labels
+  labs(
+    title = "Partisipasi Sekolah (16-18 Tahun)",
+    subtitle = "Berdasarkan Desil Pengeluaran",
+    x = "Desil Pengeluaran",
+    y = "Partisipasi Sekolah",
+    color = "Desil Pengeluaran"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",  # No need for legend since it's already on x-axis
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, face = "italic"),
+    axis.text = element_text(size = 12)
+  )
+```
+
+```{r}
+# 1. Filter data for children aged 19-23 years
+korind_202403_filtered <- merged_korind_24 %>%
+  filter(R407 >= 19 & R407 <= 23)
+
+# 2. Create binary variable for school participation
+korind_202403_filtered <- korind_202403_filtered %>%
+  mutate(
+    APS_biner = ifelse(R610 == 2, 1, 0),  # 1 = Sekolah, 0 = Tidak Sekolah
+    desil = factor(desil, levels = 1:10, labels = paste0("Desil ", 1:10))  # Ensure desil is categorical
+  )
+
+# 3. Create the scatter + boxplot graph
+ggplot(korind_202403_filtered, aes(x = desil, y = APS_biner, color = desil)) + 
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +  # Jitter for better visibility
+  geom_boxplot(aes(group = desil), alpha = 0.3, outlier.shape = NA) +  # Boxplot to summarize distribution
+  scale_color_viridis_d(option = "plasma", begin = 0.1, end = 0.9) +  # Improved color contrast
+  scale_y_continuous(breaks = c(0, 1), labels = c("Tidak Sekolah", "Sekolah")) +  # Better y-axis labels
+  labs(
+    title = "Partisipasi Sekolah (19-23 Tahun)",
+    subtitle = "Berdasarkan Desil Pengeluaran",
+    x = "Desil Pengeluaran",
+    y = "Partisipasi Sekolah",
+    color = "Desil Pengeluaran"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",  # No need for legend since it's already on x-axis
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, face = "italic"),
+    axis.text = element_text(size = 12)
+  )
+```
+
+```{r}
+korrt_202403 <- korrt_202403 %>%
+  mutate(R1816_label = case_when(
+    R1816 <= 3 ~ "Listrik",
+    R1816 == 4 ~ "Bukan Listrik",
+    TRUE ~ "Unknown"
+  )) %>%
+  mutate(R1816_label = factor(R1816_label, levels = c("Listrik", "Bukan Listrik")))
+
+lighting_reg <- merged_kor2 %>%
+  filter(!is.na(R1816)) %>%
+  count(r105, poverty, R1816_label, wt = wert) %>%
+  group_by(r105, poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(lighting_reg)
+
+lighting_all <- merged_kor2 %>%
+  filter(!is.na(R1816)) %>%
+  count(poverty, R1816_label, wt = FWT) %>%
+  group_by(poverty) %>%
+  mutate(total_count = sum(n)) %>%
+  mutate(percentage = round((n / total_count) * 100, 2)) %>%
+  rename(count = n) %>%
+  ungroup()
+
+print(lighting_all)
+
+combined_lighting <- bind_rows(lighting_reg, lighting_all)
+combined_lighting$r105 <- factor(combined_lighting$r105, levels = c(1, 2), labels = c("Perkotaan", "Perdesaan"))
+combined_lighting <- combined_lighting %>%
+  mutate(r105 = ifelse(is.na(r105), "Total", as.character(r105)))
+
+lighting_chart <- ggplot(combined_lighting, aes(x = r105, y = percentage, fill = R1816_label)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_dodge(width = 1), 
+            vjust = -0.5, 
+            size = 3,
+            color = "black") +
+  labs(
+       x = "",
+       y = "Persentase",
+       fill = "") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(lighting_chart)
+
+lightingall_chart <- ggplot(lighting_all, aes(x = R1816_label, y = percentage, fill = R1816_label)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) + 
+  facet_wrap(~poverty) +
+  theme_minimal() +
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_dodge(width = 1), 
+            vjust = -0.5, 
+            size = 3,
+            color = "black") +
+  labs(
+       x = "",
+       y = "Persentase",
+       fill = "") +
+  theme(plot.title = element_text(hjust = 0.5),
+         legend.position = "bottom",
+        panel.spacing = unit(2, "lines"))
+
+print(lightingall_chart)
+
+lightingall_chart <- ggplot(lighting_all, aes(x = "", y = percentage, fill = R1816_label)) + 
+  geom_bar(stat = "identity", width = 1) + 
+  coord_polar(theta = "y") +  # Converts the bar chart to a pie chart
+  facet_wrap(~poverty) + 
+  theme_minimal() + 
+  geom_text(aes(label = round(percentage, 2)), 
+            position = position_stack(vjust = 0.5),  # Positions the text labels inside the pie chart
+            size = 3, 
+            color = "black") + 
+  labs( 
+       x = "", 
+       y = "",  # No y-axis label needed for pie chart
+       fill = "") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom", 
+        panel.spacing = unit(2, "lines"))
+
+print(lightingall_chart)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Hitung rasio elektrifikasi per kabupaten
+df_rasio <- korrt_202403 %>%
+  group_by(R102) %>%
+  summarise(
+    total = n(),
+    listrik = sum(R1816_label == "Listrik", na.rm = TRUE),
+    rasio = listrik / total * 100
+  ) %>%
+  mutate(R102 = as.character(R102))  # Konversi ke karakter agar bisa digabung
+
+# Hitung rasio elektrifikasi secara keseluruhan
+total_rasio <- korrt_202403 %>%
+  summarise(
+    total = n(),
+    listrik = sum(R1816_label == "Listrik", na.rm = TRUE),
+    rasio = listrik / total * 100
+  ) %>%
+  mutate(R102 = "NTT")  # Pastikan tipe data sama dengan df_rasio
+
+# Gabungkan data per kabupaten dengan total
+rasio_elektrifikasi <- bind_rows(df_rasio, total_rasio)
+
+# Plot rasio elektrifikasi per kabupaten dengan label
+ggplot(rasio_elektrifikasi, aes(x = reorder(R102, rasio), y = rasio)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = sprintf("%.1f%%", rasio)), hjust = -0.2, size = 4) +
+  coord_flip() +
+  labs(
+    title = "Rasio Elektrifikasi Susenas Maret 2024",
+    x = "Kabupaten/Kota",
+    y = "Rasio Elektrifikasi (%)"
+  ) +
+  theme_minimal()
+
+
+```
+
+Pengeluaran per kapita
+
+```{r}
+library(dplyr)
+
+# Hitung pengeluaran per kapita
+kp3_202403 <- kp3_202403 %>%
+  mutate(
+    food_per_capita = FOOD / R301,
+    nonfood_per_capita = NONFOOD / R301
+  )
+
+# Hitung rata-rata tertimbang per kabupaten
+kabupaten_summary <- kp3_202403 %>%
+  group_by(R102) %>%
+  summarise(
+    mean_food_per_capita = weighted.mean(food_per_capita, WEIND, na.rm = TRUE),
+    mean_nonfood_per_capita = weighted.mean(nonfood_per_capita, WEIND, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(R102 = as.character(R102))  # Ubah ke karakter
+
+# Hitung rata-rata nasional
+nasional_summary <- kp3_202403 %>%
+  summarise(
+    R102 = "NTT",
+    mean_food_per_capita = weighted.mean(food_per_capita, WEIND, na.rm = TRUE),
+    mean_nonfood_per_capita = weighted.mean(nonfood_per_capita, WEIND, na.rm = TRUE)
+  )
+
+# Gabungkan hasil kabupaten + nasional
+final_result <- bind_rows(kabupaten_summary, nasional_summary)
+
+# Tampilkan
+print(final_result)
+
+```
+
+```{r}
+# Hitung pengeluaran per kapita (kalau FOOD dan NONFOOD belum per kapita)
+kp3_202403 <- kp3_202403 %>%
+  mutate(
+    food_per_capita = FOOD / R301,
+    nonfood_per_capita = NONFOOD / R301
+  )
+
+# Hitung rata-rata tertimbang per kabupaten
+kabupaten_summary <- kp3_202403 %>%
+  group_by(R102) %>%
+  summarise(
+    mean_food_per_capita     = weighted.mean(food_per_capita, WEIND, na.rm = TRUE),
+    mean_nonfood_per_capita  = weighted.mean(nonfood_per_capita, WEIND, na.rm = TRUE),
+    mean_kalori_kap          = weighted.mean(KALORI_KAP, WEIND, na.rm = TRUE),
+    mean_protein_kap         = weighted.mean(PROTE_KAP, WEIND, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(R102 = as.character(R102))
+
+# Hitung total nasional
+nasional_summary <- kp3_202403 %>%
+  summarise(
+    R102 = "NTT",
+    mean_food_per_capita     = weighted.mean(food_per_capita, WEIND, na.rm = TRUE),
+    mean_nonfood_per_capita  = weighted.mean(nonfood_per_capita, WEIND, na.rm = TRUE),
+    mean_kalori_kap          = weighted.mean(KALORI_KAP, WEIND, na.rm = TRUE),
+    mean_protein_kap         = weighted.mean(PROTE_KAP, WEIND, na.rm = TRUE)
+  )
+
+# Gabungkan
+tabel_konsumsi_sosduk <- bind_rows(kabupaten_summary, nasional_summary)
+
+# Tampilkan
+print(tabel_konsumsi_sosduk)
+
+write_xlsx(tabel_konsumsi_sosduk, "tabel_konsumsi_sosduk.xlsx")
 ```
 
